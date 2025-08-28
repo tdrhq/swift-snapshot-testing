@@ -382,13 +382,13 @@ public func verifySnapshot<Value, Format>(
         }
 
         #if !os(Android) && !os(Linux) && !os(Windows)
-          if (!isSwiftTesting &&
-            ProcessInfo.processInfo.environment.keys.contains("__XCODE_BUILT_PRODUCTS_DIR_PATHS"))
+          if !isSwiftTesting,
+            ProcessInfo.processInfo.environment.keys.contains("__XCODE_BUILT_PRODUCTS_DIR_PATHS")
           {
             XCTContext.runActivity(named: "Attached Recorded Snapshot") { activity in
 
               if writeToDisk {
-                // Snapshot was written to disk. Create attachment from filesisswifttesting
+                // Snapshot was written to disk. Create attachment from files
                 let attachment = XCTAttachment(contentsOfFile: snapshotFileUrl)
                 attachment.lifetime = .keepAlways
                 activity.add(attachment)
