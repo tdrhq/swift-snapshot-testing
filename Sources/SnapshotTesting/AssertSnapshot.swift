@@ -386,11 +386,11 @@ public func verifySnapshot<Value, Format>(
             ProcessInfo.processInfo.environment.keys.contains("__XCODE_BUILT_PRODUCTS_DIR_PATHS")
           {
             XCTContext.runActivity(named: "Attached Recorded Snapshot") { activity in
-
               if writeToDisk {
                 // Snapshot was written to disk. Create attachment from files
                 let attachment = XCTAttachment(contentsOfFile: snapshotFileUrl)
                 attachment.lifetime = .keepAlways
+                attachment.name = "SnapshotTest_" + snapshotFileUrl.lastPathComponent
                 activity.add(attachment)
               } else {
                 // Snapshot was not written to disk. Create attachment from data and path extension
@@ -399,7 +399,7 @@ public func verifySnapshot<Value, Format>(
 
                 let attachment = XCTAttachment(
                   uniformTypeIdentifier: typeIdentifier,
-                  name: snapshotFileUrl.lastPathComponent,
+                  name: ("SnapshotTest_" + snapshotFileUrl.lastPathComponent),
                   payload: snapshotData
                 )
                 attachment.lifetime = .keepAlways
