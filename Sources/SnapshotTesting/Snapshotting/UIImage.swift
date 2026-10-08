@@ -1,6 +1,5 @@
 #if os(iOS) || os(tvOS)
   import UIKit
-  import XCTest
 
   extension Diffing where Value == UIImage {
     /// A pixel-diffing strategy for UIImage's which requires a 100% match.
@@ -26,9 +25,9 @@
       } else {
         imageScale = UIScreen.main.scale
       }
-
-      return Diffing(
-        toData: { $0.pngData() ?? emptyImage().pngData()! },
+      let toData: (UIImage) -> Data = { $0.pngData() ?? emptyImage().pngData()! }
+      return .diff(
+        toData: toData,
         fromData: { UIImage(data: $0, scale: imageScale)! }
       ) { old, new in
         guard
@@ -36,16 +35,16 @@
             old, new, precision: precision, perceptualPrecision: perceptualPrecision)
         else { return nil }
         let difference = SnapshotTesting.diff(old, new)
-        let oldAttachment = XCTAttachment(image: old)
-        oldAttachment.name = "reference"
         let isEmptyImage = new.size == .zero
-        let newAttachment = XCTAttachment(image: isEmptyImage ? emptyImage() : new)
-        newAttachment.name = "failure"
-        let differenceAttachment = XCTAttachment(image: difference)
-        differenceAttachment.name = "difference"
+        let referenceAttachment = DiffAttachment.data(toData(old), name: "reference.png")
+        let failureAttachment = DiffAttachment.data(
+          toData(isEmptyImage ? emptyImage() : new),
+          name: "failure.png"
+        )
+        let differenceAttachment = DiffAttachment.data(toData(difference), name: "difference.png")
         return (
           message,
-          [oldAttachment, newAttachment, differenceAttachment]
+          [referenceAttachment, failureAttachment, differenceAttachment]
         )
       }
     }

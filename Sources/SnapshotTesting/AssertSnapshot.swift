@@ -1,6 +1,12 @@
 import Foundation
 import XCTest
 
+#if canImport(UIKit)
+  import UIKit
+#elseif canImport(AppKit)
+  import AppKit
+#endif
+
 #if canImport(Testing)
   import Testing
 #endif
@@ -382,30 +388,43 @@ public func verifySnapshot<Value, Format>(
         }
 
         #if !os(Android) && !os(Linux) && !os(Windows)
-          if !isSwiftTesting,
-            ProcessInfo.processInfo.environment.keys.contains("__XCODE_BUILT_PRODUCTS_DIR_PATHS")
-          {
-            XCTContext.runActivity(named: "Attached Recorded Snapshot") { activity in
-              if writeToDisk {
-                // Snapshot was written to disk. Create attachment from files
-                let attachment = XCTAttachment(contentsOfFile: snapshotFileUrl)
-                attachment.lifetime = .keepAlways
-                attachment.name = "SnapshotTest_" + snapshotFileUrl.lastPathComponent
-                activity.add(attachment)
-              } else {
-                // Snapshot was not written to disk. Create attachment from data and path extension
-                let typeIdentifier = snapshotting.pathExtension.flatMap(
-                  uniformTypeIdentifier(fromExtension:)
+          if ProcessInfo.processInfo.environment.keys.contains("__XCODE_BUILT_PRODUCTS_DIR_PATHS") {
+            if isSwiftTesting {
+              #if compiler(>=6.2)
+                recordSwiftTestingAttachment(
+                  writeToDisk ? try Data(contentsOf: snapshotFileUrl) : snapshotData,
+                  named: "SnapshotTest_" + snapshotFileUrl.lastPathComponent,
+                  sourceLocation: SourceLocation(
+                    fileID: fileID.description,
+                    filePath: filePath.description,
+                    line: Int(line),
+                    column: Int(column)
+                  )
                 )
+              #endif
+            } else {
+              XCTContext.runActivity(named: "Attached Recorded Snapshot") { activity in
+                if writeToDisk {
+                  // Snapshot was written to disk. Create attachment from file
+                  let attachment = XCTAttachment(contentsOfFile: snapshotFileUrl)
+                  attachment.lifetime = .keepAlways
+                  attachment.name = "SnapshotTest_" + snapshotFileUrl.lastPathComponent
+                  activity.add(attachment)
+                } else {
+                  // Snapshot was not written to disk. Create attachment from data and path extension
+                  let typeIdentifier = snapshotting.pathExtension.flatMap(
+                    uniformTypeIdentifier(fromExtension:)
+                  )
 
-                let attachment = XCTAttachment(
-                  uniformTypeIdentifier: typeIdentifier,
-                  name: ("SnapshotTest_" + snapshotFileUrl.lastPathComponent),
-                  payload: snapshotData
-                )
-                attachment.lifetime = .keepAlways
+                  let attachment = XCTAttachment(
+                    uniformTypeIdentifier: typeIdentifier,
+                    name: "SnapshotTest_" + snapshotFileUrl.lastPathComponent,
+                    payload: snapshotData
+                  )
+                  attachment.lifetime = .keepAlways
 
-                activity.add(attachment)
+                  activity.add(attachment)
+                }
               }
             }
           }
@@ -483,7 +502,16 @@ public func verifySnapshot<Value, Format>(
                   case .xcTest:
                     break
                   case .data(let data, let name):
-                    Attachment.record(data, named: name)
+                    recordSwiftTestingAttachment(
+                      data,
+                      named: name,
+                      sourceLocation: SourceLocation(
+                        fileID: fileID.description,
+                        filePath: filePath.description,
+                        line: Int(line),
+                        column: Int(column)
+                      )
+                    )
                   }
                 }
               #endif
@@ -623,3 +651,24 @@ enum File {
     }
   }
 }
+
+#if canImport(Testing) && compiler(>=6.2)
+  private func recordSwiftTestingAttachment(
+    _ data: Data,
+    named name: String,
+    sourceLocation: SourceLocation
+  ) {
+    #if !os(Android) && !os(Linux) && !os(Windows)
+      #if compiler(>=6.3) && (canImport(UIKit) || canImport(AppKit))
+        if #available(iOS 14.0, tvOS 14.0, macOS 11.0, *),
+          name.hasSuffix(".png"),
+          let image = Image(data: data)
+        {
+          Attachment.record(image, named: name, as: .png, sourceLocation: sourceLocation)
+          return
+        }
+      #endif
+      Attachment.record(data, named: name, sourceLocation: sourceLocation)
+    #endif
+  }
+#endif
